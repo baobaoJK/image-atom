@@ -1,0 +1,13 @@
+# 注意：必须使用 **/ 前缀，否则只匹配根目录，
+# 子包的 node_modules 会被拷入镜像导致构建失败
+**/node_modules
+**/dist
+**/.turbo
+**/dist.zip
+**/.nitro
+**/.output
+
+.git
+.gitignore
+*.md
+Dockerfile.debug

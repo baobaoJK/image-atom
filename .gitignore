@@ -1,0 +1,39 @@
+# ===== 密钥与本地配置（绝不入库）=====
+.env
+image-atom-server/.env
+*.local
+
+# ===== 运行数据（数据库 / 上传的图片，随服务器自行生成）=====
+data/
+Image-atom-postgre/
+image-atom-server/uploads/
+
+# ===== Python（后端）=====
+.venv/
+__pycache__/
+*.pyc
+*.db
+instance/
+
+# ===== 前端依赖与构建产物（monorepo）=====
+node_modules/
+dist/
+dist-ssr/
+dist.zip
+dist.tar
+.nitro/
+.output/
+.turbo/
+.cache/
+coverage/
+*.local
+
+# ===== IDE 与系统 =====
+.idea/
+.vscode/
+.DS_Store
+Thumbs.db
+
+# ===== 日志与临时文件 =====
+*.log
+*.tmp

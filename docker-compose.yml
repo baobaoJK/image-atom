@@ -1,0 +1,66 @@
+# 图元 (Image-Atom) 一键部署编排：PostgreSQL + Flask 后端 + Nginx 前端
+# 使用方法见 DEPLOY.md
+name: image-atom
+
+services:
+  postgres:
+    image: postgres:18-alpine
+    container_name: image-atom-postgres
+    restart: unless-stopped
+    environment:
+      TZ: Asia/Shanghai
+      POSTGRES_DB: ${POSTGRES_DB:-image_atom}
+      POSTGRES_USER: ${POSTGRES_USER:-image_atom}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-image_atom_pass}
+    volumes:
+      # PostgreSQL 数据目录，宿主机路径可自行调整（1Panel 可改为其数据目录）
+      - ./data/postgres:/var/lib/postgresql
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}']
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    networks:
+      - image-atom
+
+  server:
+    build: ./image-atom-server
+    container_name: image-atom-server
+    restart: unless-stopped
+    environment:
+      TZ: Asia/Shanghai
+      FLASK_ENV: production
+      SECRET_KEY: ${SECRET_KEY:?请在 .env 中设置 SECRET_KEY}
+      JWT_SECRET_KEY: ${JWT_SECRET_KEY:?请在 .env 中设置 JWT_SECRET_KEY}
+      DATABASE_URL: postgresql+psycopg2://${POSTGRES_USER:-image_atom}:${POSTGRES_PASSWORD:-image_atom_pass}@postgres:5432/${POSTGRES_DB:-image_atom}
+      # 初始账号：仅数据库为空时首次启动自动创建
+      ADMIN_USERNAME: ${ADMIN_USERNAME:-admin}
+      ADMIN_PASSWORD: ${ADMIN_PASSWORD:?请在 .env 中设置 ADMIN_PASSWORD}
+      UPLOAD_FOLDER: /app/uploads
+      MAX_CONTENT_LENGTH_MB: ${MAX_CONTENT_LENGTH_MB:-50}
+      # 站点启用 HTTPS 后改为 true
+      COOKIE_SECURE: ${COOKIE_SECURE:-false}
+    volumes:
+      # 表情包图片存储目录（存在自己的服务器磁盘上，无需 OSS）
+      - ./data/uploads:/app/uploads
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - image-atom
+
+  client:
+    build: ./image-atom-client
+    container_name: image-atom-client
+    restart: unless-stopped
+    ports:
+      # 宿主机端口:容器端口，对外访问 http://服务器IP:8000
+      - '${WEB_PORT:-8000}:8080'
+    depends_on:
+      - server
+    networks:
+      - image-atom
+
+networks:
+  image-atom:
+    driver: bridge
