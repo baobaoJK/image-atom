@@ -3,7 +3,7 @@ FROM node:22-slim AS builder
 
 ENV PNPM_HOME="/pnpm" \
     PATH="$PNPM_HOME:$PATH" \
-    NODE_OPTIONS=--max-old-space-size=8192 \
+    NODE_OPTIONS=--max-old-space-size=3072 \
     TZ=Asia/Shanghai \
     CI=true \
     COREPACK_ENABLE_DOWNLOAD_PROMPT=0 \
