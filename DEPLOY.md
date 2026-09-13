@@ -35,9 +35,41 @@ docker compose logs -f server
 首次启动时后端检测到数据库为空，会用 `ADMIN_USERNAME` / `ADMIN_PASSWORD`
 自动创建唯一账号（默认 KSaMar / 123456），直接登录即可。
 
-## 二、1Panel 面板部署
+## 二、通过 GitHub 仓库部署（推荐）
 
-1. 把整个 `Image-Atom` 项目目录上传到服务器，例如 `/opt/image-atom`。
+代码托管在 GitHub 私有仓库后，服务器直接 clone，更新只需 `git pull`。
+
+**本地推送（首次）：**
+
+```bash
+# GitHub 网页上新建【私有】仓库（如 image-atom），不要勾选初始化 README
+cd D:\Project\ToTheMoon\Image-Atom
+git remote add origin https://github.com/你的用户名/image-atom.git
+git branch -M main
+git push -u origin main
+# 推送时输入 GitHub 用户名 + Personal Access Token（Settings → Developer settings 里生成，勾选 repo 权限）
+```
+
+**服务器拉取并部署：**
+
+```bash
+# 服务器上安装 git（一般自带）：yum install -y git
+cd /opt
+git clone https://你的用户名:你的Token@github.com/你的用户名/image-atom.git image-atom
+cd image-atom
+```
+
+然后在 1Panel 创建编排指向 `/opt/image-atom`（步骤同下文）。
+
+**以后更新代码：** 本地改完 → `git add -A && git commit -m "说明" && git push`
+→ 服务器 `cd /opt/image-atom && git pull && docker compose up -d --build`
+
+> `.env`（含密钥）不在仓库里，服务器上需按 `.gitignore` 排除规则单独创建：
+> 直接把本地 `.env` 上传到服务器项目根目录即可（内容为随机密钥 + 初始账号）。
+
+## 三、1Panel 面板部署
+
+1. 项目目录已在服务器上（上传或 git clone），例如 `/opt/image-atom`。
 2. 1Panel → **容器 → 编排** → **创建编排**：
    - 路径选择 `/opt/image-atom`（即包含 `docker-compose.yml` 的目录）；
    - 或直接粘贴 `docker-compose.yml` 内容，但必须保证
