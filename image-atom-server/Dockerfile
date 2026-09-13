@@ -8,9 +8,13 @@ ENV PYTHONUNBUFFERED=1 \
 WORKDIR /app
 
 COPY requirements.txt .
-# 使用清华 PyPI 镜像加速国内构建；海外构建可删除 -i 参数
-RUN pip install --no-cache-dir -r requirements.txt \
-    -i https://pypi.tuna.tsinghua.edu.cn/simple
+# 依赖安装：清华源失败自动切阿里云源，再失败用官方 PyPI（海外服务器适用）
+RUN pip install --no-cache-dir --retries 3 --timeout 30 \
+      -r requirements.txt -i https://pypi.tuna.tsinghua.edu.cn/simple \
+    || pip install --no-cache-dir --retries 3 --timeout 30 \
+      -r requirements.txt -i https://mirrors.aliyun.com/pypi/simple/ \
+    || pip install --no-cache-dir --retries 3 --timeout 30 \
+      -r requirements.txt
 
 COPY . .
 
