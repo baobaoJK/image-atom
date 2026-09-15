@@ -24,7 +24,13 @@ const HASH_SLICE = 2 * 1024 * 1024;
 const CONCURRENCY = 3;
 const ALLOWED_EXTENSIONS = ['gif', 'jpeg', 'jpg', 'png', 'svg', 'webp'];
 
-type QueueStatus = 'done' | 'failed' | 'hashing' | 'instant' | 'uploading' | 'waiting';
+type QueueStatus =
+    | 'done'
+    | 'exists'
+    | 'failed'
+    | 'hashing'
+    | 'uploading'
+    | 'waiting';
 
 interface QueueItem {
   error?: string;
@@ -50,10 +56,10 @@ const uploading = ref(false);
 let uidSeed = 1;
 
 const doneCount = computed(
-  () =>
-    queue.value.filter(
-      (item) => item.status === 'done' || item.status === 'instant',
-    ).length,
+  () => queue.value.filter((item) => item.status === 'done').length,
+);
+const existsCount = computed(
+  () => queue.value.filter((item) => item.status === 'exists').length,
 );
 const failedCount = computed(
   () => queue.value.filter((item) => item.status === 'failed').length,
@@ -101,7 +107,7 @@ async function startUpload() {
   uploading.value = true;
   try {
     for (const item of queue.value) {
-      if (item.status === 'done' || item.status === 'instant') continue;
+      if (item.status === 'done' || item.status === 'exists') continue;
       await uploadItem(item).catch((error) => {
         item.status = 'failed';
         item.error = error?.message ?? '上传失败';
@@ -174,9 +180,9 @@ async function uploadItem(item: QueueItem) {
     totalChunks,
   });
 
-  // 秒传：相同内容的文件已存在
+  // 库里已有相同内容（md5 一致）：不重复上传，标记为已存在
   if (init.instant && init.image) {
-    item.status = 'instant';
+    item.status = 'exists';
     item.result = init.image;
     item.progress = 100;
     return;
@@ -213,7 +219,7 @@ async function uploadItem(item: QueueItem) {
     tags: item.tags.map((tag) => tag.trim()).filter(Boolean),
   });
   item.progress = 100;
-  item.status = result.instant ? 'instant' : 'done';
+  item.status = 'done';
   item.result = result.image;
 }
 
@@ -238,8 +244,8 @@ function statusText(item: QueueItem): string {
     case 'hashing': {
       return '正在校验文件...';
     }
-    case 'instant': {
-      return '秒传成功（内容已存在）';
+    case 'exists': {
+      return '图片已存在，已跳过';
     }
     case 'uploading': {
       return `上传中 ${item.progress}%`;
@@ -255,12 +261,13 @@ const statusColor: Record<
   'active' | 'exception' | 'normal' | 'success'
 > = {
   done: 'success',
+  // 已存在：antd Progress 无 warning 状态，用 normal 表达
+  exists: 'normal',
   failed: 'exception',
   hashing: 'normal',
-  instant: 'success',
   uploading: 'active',
   waiting: 'normal',
-};
+} as const;
 </script>
 
 <template>
@@ -362,8 +369,10 @@ const statusColor: Record<
     >
       <div class="text-muted-foreground text-sm">
         共 {{ queue.length }} 个，成功 {{ doneCount }} 个<template
-          v-if="failedCount"
+          v-if="existsCount"
         >
+          ，已存在 {{ existsCount }} 个</template
+        ><template v-if="failedCount">
           ，失败 {{ failedCount }} 个</template
         >
         <a v-if="doneCount > 0" class="ml-2 cursor-pointer" @click="router.push('/gallery')">

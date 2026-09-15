@@ -17,8 +17,9 @@ import {
 } from 'ant-design-vue';
 
 import {
-  deleteImageApi,
   batchDeleteImageApi,
+  deleteImageApi,
+  getStatsApi,
   listCategoriesApi,
   listImagesApi,
   listTagsApi,
@@ -237,6 +238,8 @@ const sentinelRef = ref<HTMLElement>();
 let observer: null | IntersectionObserver = null;
 
 const categoryOptions = ref<{ label: string; value: string }[]>([]);
+// 图片类型数量（用于筛选按钮显示"静态图 N / 动态图 N"）
+const typeCounts = ref({ animated: 0, static: 0 });
 
 async function fetchList(mode: 'append' | 'replace') {
   if (loading.value) return;
@@ -261,10 +264,12 @@ async function fetchList(mode: 'append' | 'replace') {
 }
 
 async function refreshFilters() {
-  const [tagList, categoryList] = await Promise.all([
-    listTagsApi(activeCategory.value || undefined),
+  const [tagList, categoryList, stats] = await Promise.all([
+    listTagsApi(activeCategory.value || undefined, activeType.value || undefined),
     listCategoriesApi(),
+    getStatsApi(),
   ]);
+  typeCounts.value = stats.typeCounts;
   tags.value = tagList;
   categories.value = categoryList;
   categoryOptions.value = categoryList.map((c) => ({
@@ -284,9 +289,13 @@ function selectType(name: '' | 'animated' | 'static') {
 }
 
 // 切换分类：标签栏按分类联动刷新；当前选中的标签若不在新分类里则重置
-watch(activeCategory, async () => {
+// 分类或图片类型变化：标签栏按新范围联动刷新；失效标签自动重置
+watch([activeCategory, activeType], async () => {
   page.value = 1;
-  const tagList = await listTagsApi(activeCategory.value || undefined);
+  const tagList = await listTagsApi(
+    activeCategory.value || undefined,
+    activeType.value || undefined,
+  );
   tags.value = tagList;
   if (activeTag.value && !tagList.some((t) => t.name === activeTag.value)) {
     activeTag.value = '';
@@ -295,8 +304,8 @@ watch(activeCategory, async () => {
   }
 });
 
-// 标签 / 图片类型变化：回到第 1 页重新拉取
-watch([activeTag, activeType], () => {
+// 标签变化：回到第 1 页重新拉取
+watch(activeTag, () => {
   page.value = 1;
   fetchList('replace');
 });
@@ -518,6 +527,9 @@ onBeforeUnmount(() => observer?.disconnect());
         @click="selectType('')"
       >
         全部
+        <span class="opacity-60">
+          {{ typeCounts.static + typeCounts.animated }}
+        </span>
       </button>
       <button
         class="type-chip"
@@ -525,6 +537,7 @@ onBeforeUnmount(() => observer?.disconnect());
         @click="selectType('static')"
       >
         静态图
+        <span class="opacity-60">{{ typeCounts.static }}</span>
       </button>
       <button
         class="type-chip"
@@ -532,6 +545,7 @@ onBeforeUnmount(() => observer?.disconnect());
         @click="selectType('animated')"
       >
         动态图
+        <span class="opacity-60">{{ typeCounts.animated }}</span>
       </button>
       <Select
         v-model:value="activeCategory"
@@ -542,7 +556,7 @@ onBeforeUnmount(() => observer?.disconnect());
         size="small"
       />
     </div>
-    <div class="mb-4 flex flex-wrap items-center gap-2">
+    <div v-if="tags.length" class="mb-4 flex flex-wrap items-center gap-2">
       <button
         class="tag-chip"
         :class="{ 'tag-chip-active': activeTag === '' }"

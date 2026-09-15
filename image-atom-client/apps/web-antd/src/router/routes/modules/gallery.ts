@@ -3,9 +3,19 @@ import type { RouteRecordRaw } from 'vue-router';
 const routes: RouteRecordRaw[] = [
   {
     meta: {
+      icon: 'lucide:layout-dashboard',
+      order: 0,
+      title: '仪表盘',
+    },
+    name: 'Dashboard',
+    path: '/dashboard',
+    component: () => import('#/views/dashboard/index.vue'),
+  },
+  {
+    meta: {
       icon: 'lucide:images',
       order: 1,
-      title: '图',
+      title: '图元信息',
     },
     name: 'Gallery',
     path: '/gallery',

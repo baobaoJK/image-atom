@@ -38,6 +38,24 @@ export interface CategoryItem {
   name: string;
 }
 
+export interface ImageStats {
+  diskUsage: number;
+  images: number;
+  originals: number;
+  thumbnails: number;
+  typeCounts: {
+    animated: number;
+    static: number;
+  };
+}
+
+/**
+ * 仪表盘统计：图片数 / 磁盘文件数 / 占用空间 / 类型分布
+ */
+export async function getStatsApi() {
+  return requestClient.get<ImageStats>('/image/stats');
+}
+
 /**
  * 分页获取表情包列表，可按标签 / 分类 / 图片类型 / 名字关键词筛选
  */
@@ -53,11 +71,11 @@ export async function listImagesApi(params: {
 }
 
 /**
- * 标签及使用数量；传入 category 时只返回该分类下使用中的标签
+ * 标签及使用数量；可按分类 / 图片类型级联过滤
  */
-export async function listTagsApi(category?: string) {
+export async function listTagsApi(category?: string, type?: '' | 'animated' | 'static') {
   return requestClient.get<TagItem[]>('/image/tags', {
-    params: { category: category || undefined },
+    params: { category: category || undefined, type: type || undefined },
   });
 }
 

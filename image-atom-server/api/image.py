@@ -95,24 +95,42 @@ def list_categories():
 @image_bp.get('/tags')
 @jwt_required()
 def list_tags():
-    """标签及使用数量；传入 category 时只返回该分类下使用中的标签。
+    """标签及使用数量；可按分类 / 图片类型级联过滤。
 
-    GET /api/image/tags            全部标签
-    GET /api/image/tags?category=猫和老鼠   仅该分类内使用的标签
+    过滤条件生效时只返回"正在使用中"的标签（数量为 0 的不显示），
+    无过滤条件时返回全部标签。
+
+    GET /api/image/tags
+    GET /api/image/tags?category=猫和老鼠&type=animated
     """
     category_param = request.args.get('category', '').strip()
+    image_type = request.args.get('type', '').strip().lower()
+    has_type_filter = image_type in {'static', 'animated'}
 
     counts_query = db.session.query(
         Tag, db.func.count(image_tags.c.image_id).label('cnt')
     ).outerjoin(image_tags, image_tags.c.tag_id == Tag.id)
 
+    # 有任一筛选时需要关联图片表；分类需再关联分类表
+    if category_param or has_type_filter:
+        counts_query = counts_query.join(
+            Image, Image.id == image_tags.c.image_id
+        )
     if category_param:
-        # 指定分类：只保留该分类下使用中的标签（数量为 0 的不显示）
-        counts_query = (
-            counts_query.join(Image, Image.id == image_tags.c.image_id)
-            .join(Category, Image.category_id == Category.id)
-            .filter(Category.name == category_param)
-            .having(db.func.count(image_tags.c.image_id) > 0)
+        counts_query = counts_query.join(
+            Category, Image.category_id == Category.id
+        ).filter(Category.name == category_param)
+    if has_type_filter:
+        counts_query = counts_query.filter(
+            Image.format == 'gif'
+            if image_type == 'animated'
+            else Image.format != 'gif'
+        )
+
+    if category_param or has_type_filter:
+        # 只保留筛选范围内"正在使用"的标签
+        counts_query = counts_query.having(
+            db.func.count(image_tags.c.image_id) > 0
         )
 
     counts = (
@@ -174,6 +192,43 @@ def delete_image(image_id: int):
     remove_orphan_meta()
     db.session.commit()
     return ok(message='已删除')
+
+
+@image_bp.get('/stats')
+@jwt_required()
+def image_stats():
+    """仪表盘统计：图片数 / 磁盘文件数 / 占用空间 / 类型分布。"""
+    total = db.session.query(Image).count()
+    static_count = (
+        db.session.query(Image).filter(Image.format != 'gif').count()
+    )
+
+    upload_root = os.path.abspath(current_app.config['UPLOAD_FOLDER'])
+    originals = thumbnails = 0
+    disk_bytes = 0
+    for dirpath, dirnames, filenames in os.walk(upload_root):
+        # 头像与临时分片不计入图片统计
+        dirnames[:] = [d for d in dirnames if d not in {'.tmp', 'avatars'}]
+        for fn in filenames:
+            file_path = os.path.join(dirpath, fn)
+            if not os.path.isfile(file_path):
+                continue
+            disk_bytes += os.path.getsize(file_path)
+            if fn.endswith('_thumb.webp'):
+                thumbnails += 1
+            else:
+                originals += 1
+
+    return ok({
+        'images': total,                      # 图片总数（数据库记录）
+        'originals': originals,               # 磁盘原图文件数
+        'thumbnails': thumbnails,             # 磁盘缩略图文件数
+        'diskUsage': disk_bytes,              # 原图 + 缩略图占用字节数
+        'typeCounts': {
+            'static': static_count,
+            'animated': total - static_count,
+        },
+    })
 
 
 @image_bp.put('/batch')

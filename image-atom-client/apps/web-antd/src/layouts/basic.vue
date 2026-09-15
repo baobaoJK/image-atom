@@ -103,6 +103,7 @@ watch(
     <template #user-dropdown>
       <UserDropdown
         :avatar
+        :avatar-dot="false"
         :description
         :menus
         :text="userStore.userInfo?.realName"

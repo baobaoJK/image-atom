@@ -39,6 +39,25 @@ def info():
     return ok(user.to_dict())
 
 
+@user_bp.put('/name')
+@jwt_required()
+def change_name():
+    """修改显示名字（昵称，非登录账号）。"""
+    user = _current_user()
+    if user is None:
+        return fail('用户不存在，请重新登录', http_status=401)
+
+    payload = request.get_json(silent=True) or {}
+    name = (payload.get('name') or '').strip()[:64]
+    if not name:
+        return fail('名字不能为空')
+
+    user.nickname = name
+    user.updated_at = datetime.now(timezone.utc)
+    db.session.commit()
+    return ok(user.to_dict())
+
+
 @user_bp.post('/avatar')
 @jwt_required()
 def upload_avatar():

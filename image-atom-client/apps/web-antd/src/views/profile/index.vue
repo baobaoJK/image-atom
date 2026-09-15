@@ -6,7 +6,7 @@ import { preferences } from '@vben/preferences';
 
 import { Button, Card, Input, Upload, message } from 'ant-design-vue';
 
-import { changePasswordApi, uploadAvatarApi } from '#/api/user';
+import { changePasswordApi, updateNameApi, uploadAvatarApi } from '#/api/user';
 import { useAuthStore } from '#/store';
 
 defineOptions({ name: 'Profile' });
@@ -20,6 +20,36 @@ const avatar = computed(
   () => userStore.userInfo?.avatar || preferences.app.defaultAvatar,
 );
 const uploading = ref(false);
+
+// 显示名字（昵称，非登录账号）
+const nameForm = reactive({ name: '' });
+const nameSaving = ref(false);
+
+// 聚焦时若还是空的高亮占位，填入当前名字方便整体替换
+function beginEditName() {
+  if (!nameForm.name) {
+    nameForm.name = userStore.userInfo?.realName ?? '';
+  }
+}
+
+async function saveName() {
+  const name = nameForm.name.trim();
+  if (!name) {
+    message.warning('名字不能为空');
+    return;
+  }
+  nameSaving.value = true;
+  try {
+    await updateNameApi(name);
+    await authStore.fetchUserInfo();
+    nameForm.name = name;
+    message.success('名字已更新');
+  } catch {
+    message.error('修改失败');
+  } finally {
+    nameSaving.value = false;
+  }
+}
 
 // 密码表单
 const passwordForm = reactive({
@@ -89,7 +119,7 @@ async function handleChangePassword() {
 </script>
 
 <template>
-  <div class="mx-auto max-w-2xl p-4 md:p-5">
+  <div class="mx-auto flex max-w-2xl flex-col gap-5 p-4 md:p-5">
     <!-- 账号信息 -->
     <Card title="账号信息">
       <div class="flex items-center gap-5">
@@ -110,12 +140,29 @@ async function handleChangePassword() {
             </Button>
           </Upload>
         </div>
-        <div class="flex flex-col gap-1">
-          <div class="text-lg font-medium">
-            {{ userStore.userInfo?.realName }}
+        <div class="flex min-w-0 flex-1 flex-col gap-2">
+          <div class="flex flex-col gap-1">
+            <span class="text-sm">名字（显示名称，可随时修改）</span>
+            <div class="flex items-center gap-2">
+              <Input
+                v-model:value="nameForm.name"
+                class="max-w-56"
+                :maxlength="20"
+                placeholder="输入新的名字"
+                @focus="beginEditName"
+              />
+              <Button
+                :loading="nameSaving"
+                size="small"
+                type="primary"
+                @click="saveName"
+              >
+                保存
+              </Button>
+            </div>
           </div>
           <div class="text-muted-foreground text-sm">
-            用户名：{{ userStore.userInfo?.username }}
+            登录账号：{{ userStore.userInfo?.username }}（不可修改）
           </div>
           <div class="text-muted-foreground text-xs">
             {{
@@ -133,7 +180,7 @@ async function handleChangePassword() {
     </Card>
 
     <!-- 修改密码 -->
-    <Card class="mt-4" title="修改密码">
+    <Card title="修改密码">
       <div class="flex max-w-sm flex-col gap-3">
         <div class="flex flex-col gap-1">
           <span class="text-sm">原密码</span>
